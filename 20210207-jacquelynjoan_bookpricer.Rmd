@@ -1,0 +1,685 @@
+---
+title: "20210207-jacquelynjoan_bookpricer"
+author: "Jared Garfinkel"
+date: "2/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(rvest)
+library(httr)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+# define websites
+
+```{r}
+url = "https://www.goodreads.com"
+url2 = "https://www.goodreads.com/review/list/6207151?shelf=read"
+url3 = "https://www.goodreads.com/user/sign_in"
+```
+
+# sign on
+
+```{r sign on}
+# ?html_form
+
+anorg3_sess = html_session(url3)
+
+anorgform = html_form(anorg3_sess)[[1]]
+
+# anorgform
+
+# ?set_values
+
+filled_form <- set_values(anorgform, "user[email]"="jacquelynjoan@gmail.com", "user[password]"="autodidact")
+
+submit_form(anorg3_sess, filled_form)
+```
+
+
+```{r go to reading list}
+s = anorg3_sess %>%
+  jump_to(url2)
+```
+
+# for loops
+
+```{r get list of book webpage urls, include = FALSE, eval = FALSE}
+t = s %>% 
+  html_nodes("#booksBody .title a")
+
+# html_attrs(t[[1]])[["title"]]
+
+# t[[1]]
+
+# html_attrs(t[[1]])[[2]]
+
+u = NULL
+for (i in 1:30) {
+  u[[i]] = html_attrs(t[[i]])[[2]]
+}
+```
+
+
+```{r go to book webpage urls, include = FALSE, eval = FALSE}
+v = NULL
+for (i in 1:30) {
+  v[[i]] = s %>% 
+    jump_to(paste0(url, u[[i]]))
+}
+```
+
+```{r buy button href to Amazon, include = FALSE, eval = FALSE}
+# ?html_node
+
+# w.test = v[[1]] %>%
+#   html_nodes("#buyButton") %>% 
+#   html_attrs()
+# 
+# w.test[[1]][["href"]]
+
+w = NULL
+for (i in 1:30) {
+  w[[i]] = v[[i]] %>% 
+    html_nodes("#buyButton") %>% 
+    html_attrs()
+}
+
+x = NULL
+for (i in 1:30) {
+  x[[i]] = w[[i]][[1]][["href"]]
+}
+```
+
+
+```{r go to Amazon, include = FALSE, eval = FALSE}
+y = NULL
+for (i in 1:30) {
+  y[[i]] = html_session(paste0(url, x[[i]]))
+}
+```
+
+```{r scrape price, include = FALSE, eval = FALSE}
+# ?html_nodes
+# ?html_children
+# ?replace_na
+
+# y[[1]] %>% 
+#   html_nodes("#declarative_4 .a-color-price") %>% 
+#   html_text()
+
+# y[[30]] %>%
+#   html_nodes(".title-text") %>%
+#   html_text() %>%
+#   str_replace_all("\n", "") %>%
+#   str_which("Paperback") %>%
+#   min() %>% 
+#   as_tibble() %>% 
+#   na_if(Inf)
+
+# y[[2]] %>% 
+#   html_nodes(".title-text") %>% 
+#   html_text() %>% 
+#   str_replace_all("\n", "") %>% 
+#   str_which("Hardcover") %>% 
+#   min()
+
+# str(y[[25]])
+# str(y[[25]]$response)
+# y[[25]]$response$status_code
+```
+
+
+```{r notes, include = FALSE, eval = FALSE}
+pull_prices = function(site = y) {
+  z = NULL
+  for (i in 1:30) {
+    if (site[[i]]$response$status_code == "404") {
+      z[[i]]$paperback = NA
+      z[[i]]$hardcover = NA
+    }
+    else {
+        z[[i]]$paperback = site[[i]] %>% 
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Paperback") %>% 
+          min() %>% 
+          na_if(Inf)
+      z[[i]]$hardcover = site[[i]] %>% 
+        html_nodes(".title-text") %>% 
+        html_text() %>% 
+        str_replace_all("\n", "") %>% 
+        str_which("Hardcover") %>% 
+        min() %>% 
+        na_if(Inf)
+    }
+  }
+  return(z)
+}
+
+pull_prices(y)
+```
+
+# set status
+
+```{r is404}
+is_404 = function(y) {
+  status = NULL
+  for (i in 1:30) {
+    status[[i]] = if_else(y[[i]]$response$status_code %in% c("404", "503"), TRUE, FALSE)
+  }
+  return(status)
+}
+```
+
+
+```{r status, include = FALSE, eval = FALSE}
+# str(y[[25]]$response$status_code)
+
+# y2 = y %>% 
+#   keep(is_404 == FALSE)
+
+# status = is_404()
+# 
+# y2 = NULL
+# for (i in 1:30) {
+#   y2[[i]] = ifelse(status[[i]] == TRUE, NA, y[[i]])
+# }
+# 
+# y2 = y %>% 
+#   filter(!is_404(.))
+# 
+# y3 = NULL
+# for (i in 1:30) {
+#   y3[[i]] = y[[i]] %>% 
+#     
+# }
+# 
+# is_404(y[[2]])
+
+# head(y)
+
+# y = y %>% 
+#   discard(y[[i]]$response$status_code == "404")
+# 
+# head(str(head(y, 1)), 1)
+# 
+# y2 = map(y, ~discard(~is_404(y)))
+# 
+# y2
+# 
+# ?discard()
+```
+
+# pull price locations
+
+```{r paperback site}
+##########################################################################################
+## This returns the line on which the price can be found for paperbacks unless and the website that have 404 errors.
+##########################################################################################
+
+pull_prices2 = function(status, y) {
+  z = NULL
+  for (i in 1:length(y)) {
+    z[[i]] = if (status[[i]] == FALSE) {
+        y[[i]] %>% 
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Paperback") %>% 
+          min() %>% 
+          na_if(Inf)
+    }
+    else {
+      NA
+    }
+  }
+  return(z)
+}
+
+# z = pull_prices2()
+# z
+```
+
+```{r hardcover site}
+pull_prices3 = function(status, y) {
+  za = NULL
+  for (i in 1:length(y)) {
+    za[[i]] = if (status[[i]] == FALSE) {
+        y[[i]] %>% 
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Hardcover") %>% 
+          min() %>% 
+          na_if(Inf)
+    }
+    else {
+      NA
+    }
+  }
+  return(za)
+}
+
+# za = pull_prices3()
+# za
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+z[[i]]$hardcover = site[[i]] %>% 
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Hardcover") %>% 
+          min() %>% 
+          na_if(Inf)
+      }
+  return(z)
+}
+  
+pull_prices2()
+```
+
+```{r, include=FALSE, eval = FALSE}
+z = NULL
+  for (i in 1:30) {
+    z[[i]]$paperback = if_else(site[[i]]$response$status_code == "404", 99, 
+            y[[i]] %>% 
+              html_nodes(".title-text") %>% 
+              html_text() %>% 
+              str_replace_all("\n", "") %>% 
+              str_which("Paperback") %>% 
+              min() %>% 
+              na_if(Inf))
+    z[[i]]$hardcover = if_else(site[[i]]$response$status_code == "404", 99, 
+            y[[i]] %>% 
+              html_nodes(".title-text") %>% 
+              html_text() %>% 
+              str_replace_all("\n", "") %>% 
+              str_which("Hardcover") %>% 
+              min() %>% 
+              na_if(Inf))
+  }
+}
+pull_prices(y)
+
+```
+
+
+```{r notes2, include = FALSE, eval = FALSE}
+# y[[1]] %>% 
+#   html_nodes(paste0("#declarative_", z[[1]], " .a-color-price")) %>% 
+#   html_text()
+
+?html_text
+
+y[[2]] %>% 
+  html_nodes(paste0("#declarative_", z[[2]], " .a-color-price")) %>% 
+  html_text()
+
+scrape_price = function(paperback = z, hardcover = za) {
+  zaz = vector(mode = "list", length = 30)
+  for (i in 1:30) {
+    if (!is.na(paperback[[i]])) {
+      zaz$zprice[[i]] =
+        y[[i]] %>% 
+          html_nodes(paste0("#declarative_", paperback[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+    }
+    else {
+      NA
+    }
+    if (!is.na(hardcover[[i]])) {
+      zaz[[i]]$hardcover = 
+        y[[i]] %>% 
+          html_nodes(paste0("#declarative_", hardcover[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+    }
+    else {
+      NA
+    }
+    zaz[[i]] = tibble(zaz[[i]]$paperback, zaz[[i]]$hardcover)
+  }
+  return(zaz)
+}
+
+zaz = scrape_price()
+head(zaz)
+
+str_length(zaz[[c(25,2)]])
+is.character(zaz[[c(2, 1)]])
+length(zaz[[c(1,1)]])
+?character
+is.na(str_length(zaz[[c(2,2)]]))
+is.na(zaz[[c(2,2)]])
+rownames(zaz) = 
+
+as_tibble(rownames = html_attrs(t)[["title"]])
+```
+
+# pull the prices
+
+```{r scrapeprice2}
+# y[[4]] %>% 
+#   html_nodes(paste0("#declarative_", z[[4]], " .a-color-price")) %>% 
+#   html_text(trim = TRUE)
+  
+
+scrape_price2 = function(sess, paperback = z, hardcover = za) {
+  paperbackprice = NULL  
+  for (i in 1:length(sess)) {
+    if (!is.na(paperback[[i]])) {
+      paperbackprice[[i]] = sess[[i]] %>% 
+        html_nodes(paste0("#declarative_", paperback[[i]], " .a-color-price")) %>% 
+        html_text(trim = TRUE)
+    }
+    else {
+      paperbackprice[[i]] = NA
+    }
+  }
+  hardcoverprice = NULL
+  for (i in 1:length(sess)) {
+    if (!is.na(hardcover[[i]])) {
+      hardcoverprice[[i]] = sess[[i]] %>% 
+        html_nodes(paste0("#declarative_", hardcover[[i]], " .a-color-price")) %>% 
+        html_text(trim = TRUE)
+    }
+    else {
+      hardcoverprice[[i]] = NA
+    }
+    # hardcoverprice = bind_rows(hardcoverprice)
+  }
+  zaz = tibble(paperbackprice, hardcoverprice)
+  # t = title_scraper(sess)
+  # titles = map(t, ~html_attr(., name = "title")) %>%
+  #   as_tibble()
+  # zaz = zaz %>%
+  #   add_column(titles)
+  # zaz$titles = NULL
+  # for (i in 1:length(t)) {
+  #   zaz$titles[[i]] = html_attrs(t[[i]])[["title"]]
+  # }
+  return(zaz)
+}
+
+
+# map(L, ~html_attr(., name = "title"))
+
+# zaz %>%
+#   na_if(is_empty(.))
+# 
+# zaz %>% 
+#   na_if(., character(0))
+#   data.frame()
+#   cbind() %>% 
+#   data.frame()
+
+# zaz = scrape_price2()
+```
+
+# fix the tibble
+
+```{r fix the lists}
+price_fixer = function(df = zaz) {
+  zaz2 = df %>% 
+    mutate(paperbackprice = na_if(paperbackprice, "character(0)"),
+           hardcoverprice = na_if(hardcoverprice, "character(0)"))
+  
+  zaz3 = zaz2 %>% 
+    unnest()
+  
+  return(zaz3)
+}
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+zaz %>% 
+  mutate(paperbackprice = map(paperbackprice))
+head(zaz) %>% 
+  unlist() %>% 
+  data.frame()
+df = zaz %>% 
+  as_tibble(rownames = "title") %>% 
+  mutate(paperbackprice = na_if(paperbackprice, length(.)==0))
+
+head(df)
+map(df, ~na_if(~!is.character(.)))
+
+df2 = df %>% 
+  mutate(paperbackprice = na_if(!is.character(paperbackprice)),
+         hardcoverprice = na_if(!is.character(hardcoverprice)))
+# rownames(zaz)
+# zaz %>% 
+#   unlist() %>% 
+#   data.frame()
+# 
+# str(zaz)
+# 
+# hardcoverprice[[29]]
+# length(za)
+# zaz[[1]]
+# y[[1]]
+# 
+# zaz = tibble(z, za) %>% 
+#   unnest() %>% 
+#   add_column(y)
+# head(zaz)
+# zaz = zaz %>%
+#   mutate(id = row_number(),
+#          paperbackprice = y[[id]] %>%
+#            html_nodes(paste0("#declarative_", z[[id]], " .a-color-price")) %>%
+#            html_text(trim = TRUE))
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+zaz = vector(mode = "list", length = 30)
+  for (i in 1:30) {
+    if (!is.na(paperback[[i]])) {
+      zaz[[i]]$paperback =
+        y[[i]] %>% 
+          html_nodes(paste0("#declarative_", paperback[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+    }
+    else {
+      NA
+    }
+    if (!is.na(hardcover[[i]])) {
+      zaz[[i]]$hardcover = 
+        y[[i]] %>% 
+          html_nodes(paste0("#declarative_", hardcover[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+    }
+    else {
+      NA
+    }
+    zaz[[i]] = tibble(zaz[[i]]$paperback, zaz[[i]]$hardcover)
+  }
+  return(zaz)
+}
+
+tibble(z, za) %>% 
+  unnest()
+
+head(y)
+```
+
+```{r following pages notes, include = FALSE, eval = FALSE}
+
+# b = NULL
+# for (i in 1:15) {
+#   b[[i]] = s %>% 
+#     html_nodes(".right .next_page")
+# }
+b = s %>% 
+  html_nodes(".right .next_page") %>% 
+  html_attrs()
+b1 = s %>% 
+  jump_to(paste0(url, b[[1]][["href"]]))
+
+
+c = b1 %>% 
+  html_nodes(".right .next_page") %>% 
+  html_attrs()
+
+c[[1]][["href"]]
+
+```
+
+# for loop function
+
+```{r price_scraper}
+# s is the reading list session
+price_scraper = function(sess) {
+  
+  t = sess %>% 
+    html_nodes("#booksBody .title a")
+
+  u = NULL
+  for (i in 1:length(t)) {
+    u[[i]] = html_attrs(t[[i]])[["href"]]
+  }
+  
+  v = NULL
+  for (i in 1:length(u)) {
+    v[[i]] = s %>% 
+      jump_to(paste0(url, u[[i]]))
+  }
+  
+  w = NULL
+  for (i in 1:length(v)) {
+    w[[i]] = v[[i]] %>% 
+      html_nodes("#buyButton")
+  }
+
+  x = NULL
+  for (i in 1:length(w)) {
+    x[[i]] = html_attrs(w[[i]])[[1]][["href"]]
+  }
+  
+  y = NULL
+  for (i in 1:length(x)) {
+    y[[i]] = html_session(paste0(url, x[[i]]))
+  }
+  
+  return(y)
+}
+```
+
+
+```{r zazzer}
+zazzer = function(y) {
+  status = is_404(y)
+  z = pull_prices2(status, y)
+  za = pull_prices3(status, y)
+  zaz = scrape_price2(y, z, za)
+  return(zaz)
+}
+
+```
+
+# repeat
+
+```{r}
+next_pager = function(sess) {
+  a = sess %>% 
+    html_nodes(".right .next_page") %>% 
+    html_attrs()
+  a1 = sess %>% 
+    jump_to(paste0(url, a[[1]][["href"]]))
+  return(a1)
+}
+```
+
+
+```{r notes4, include = FALSE, eval = FALSE}
+page_scraper2 = function(sess) {
+  b2 = page_scraper(sess) %>% 
+    price_scraper(sess = .)
+}
+
+# b1 = page_scraper(s)
+
+# all_page_scraper = function(sess) {
+#   rerun(page_scraper, 15)
+# }
+
+# b1 = s %>% 
+#   page_scraper(.)
+```
+
+
+```{r pagepricescraper}
+L = s %>%
+  next_pager() %>%
+  title_scraper() %>% 
+  price_scraper()
+L
+length(L)
+status = is_404(L)
+z = pull_prices2(status, L)
+za = pull_prices3(status, L)
+scrape_price2(L, z, za)
+# html_attrs(L[[1]])[["href"]]
+
+# length(L)
+# html_attrs(L[[1]])[[1]][["href"]]
+
+# html_attrs(L[[1]])[["href"]]
+
+page_price_scraper = function(sess) {
+  i = 1
+  b = NULL
+  while (i < 16) {
+    b[[i]] = sess %>% 
+      next_pager(.) %>% 
+      # title_scraper(.) %>% 
+      price_scraper(.) %>% 
+      zazzer(.) %>% 
+      price_fixer(.)
+    bnext = sess %>% 
+      next_pager(.)
+    i = i + 1
+    sess = bnext
+  }
+  return(b)
+}
+
+b = page_price_scraper(s)
+head(b)
+```
+
+
+```{r notes3, include = FALSE, eval = FALSE}
+for (i in 1:15) {
+    b[[i]] = bind_rows(b[[i]])
+  }
+  b = bind_rows(b)
+  return(b)
+}
+
+b = page_price_scraper(s)
+
+b1
+
+head(b2)
+```
+

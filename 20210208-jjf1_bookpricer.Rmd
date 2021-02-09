@@ -1,0 +1,355 @@
+---
+title: "20210208-jjf1_bookpricer"
+author: "Jared Garfinkel"
+date: "2/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(rvest)
+library(httr)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+# define websites
+
+```{r}
+url = "https://www.goodreads.com"
+url2 = "https://www.goodreads.com/review/list/6207151?shelf=read"
+url3 = "https://www.goodreads.com/user/sign_in"
+```
+
+# sign on
+
+```{r sign on}
+# ?html_form
+
+anorg3_sess = html_session(url3)
+
+anorgform = html_form(anorg3_sess)[[1]]
+
+# anorgform
+
+# ?set_values
+
+filled_form <- set_values(anorgform, "user[email]"="jacquelynjoan@gmail.com", "user[password]"="autodidact")
+
+submit_form(anorg3_sess, filled_form)
+```
+
+```{r go to reading list}
+s = anorg3_sess %>%
+  jump_to(url2)
+```
+
+```{r}
+is_404 = function(y) {
+  status = NULL
+  for (i in 1:length(y)) {
+    status[[i]] = if_else(y[[i]]$response$status_code %in% c("404", "500", "503"), TRUE, FALSE)
+  }
+  return(status)
+}
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+price_scraper = function(sess) {
+  j = 0
+  res = NULL
+  while (j < 16) {
+    j = j + 1
+    t = sess %>% 
+      html_nodes("#booksBody .title a")
+  
+    u = NULL
+    for (i in 1:length(t)) {
+      u[[i]] = html_attrs(t[[i]])[["href"]]
+    }
+    
+    v = NULL
+    for (i in 1:length(u)) {
+      v[[i]] = s %>% 
+        jump_to(paste0(url, u[[i]]))
+    }
+    
+    w = NULL
+    for (i in 1:length(v)) {
+      w[[i]] = v[[i]] %>% 
+        html_nodes("#buyButton")
+    }
+  
+    x = NULL
+    for (i in 1:length(w)) {
+      x[[i]] = html_attrs(w[[i]])[[1]][["href"]]
+    }
+    
+    y = NULL
+    for (i in 1:length(x)) {
+      y[[i]] = html_session(paste0(url, x[[i]]))
+    }
+    
+    status = is_404(y)
+    
+    z = NULL
+    for (i in 1:length(y)) {
+      if (status[[i]] == FALSE) {
+        z[[i]] =
+          y[[i]] %>% 
+            html_nodes(".title-text") %>% 
+            html_text() %>% 
+            str_replace_all("\n", "") %>% 
+            str_which("Paperback") %>% 
+            min() %>% 
+            na_if(Inf)
+      }
+      else {
+        z[[i]] = NA
+      }
+    }
+    
+    za = NULL
+    for (i in 1:length(y)) {
+      if (status[[i]] == FALSE) {
+        za[[i]] =
+          y[[i]] %>% 
+            html_nodes(".title-text") %>% 
+            html_text() %>% 
+            str_replace_all("\n", "") %>% 
+            str_which("Hardcover") %>% 
+            min() %>% 
+            na_if(Inf)
+      }
+      else {
+        za[[i]] = "NA"
+      }
+    }
+  
+    paperbackprice = NULL  
+    for (i in 1:length(y)) {
+      if (!is.na(z[[i]])) {
+        paperbackprice[[i]] = y[[i]] %>% 
+          html_nodes(paste0("#declarative_", z[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+      }
+      else {
+        paperbackprice[[i]] = "NA"
+      }
+    }
+    
+    paperbackprice = na_if(paperbackprice, "character(0)")
+    
+    hardcoverprice = NULL
+    for (i in 1:length(y)) {
+      if (!is.na(za[[i]])) {
+        hardcoverprice[[i]] = y[[i]] %>% 
+          html_nodes(paste0("#declarative_", za[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+      }
+      else {
+        hardcoverprice[[i]] = NA
+      }
+    }
+    
+    hardcoverprice = na_if(hardcoverprice, "character(0)")
+    
+    zaz = tibble(paperbackprice, hardcoverprice)
+    zaz2 = zaz %>% 
+      mutate(titles = map(t, ~html_attr(., name = "title")))
+    
+    zaz3 = zaz2 %>% 
+      unnest()
+    
+    res = rbind(res, zaz3)
+    
+    a = sess %>% 
+      html_nodes(".right .next_page") %>% 
+      html_attrs()
+    
+    a1 = sess %>% 
+      jump_to(paste0(url, a[[1]][["href"]]))
+    
+    sess = a1
+  }
+  return(res)
+}
+```
+
+```{r}
+price_scraper2 = function(sess) {
+  j = 1
+  res = NULL
+  while (j < 16) {
+    t = sess %>% 
+      html_nodes("#booksBody .title a")
+  
+    u = NULL
+    for (i in 1:length(t)) {
+      u[[i]] = html_attrs(t[[i]])[["href"]]
+    }
+    
+    v = NULL
+    for (i in 1:length(u)) {
+      v[[i]] = s %>% 
+        jump_to(paste0(url, u[[i]]))
+    }
+    
+    w = NULL
+    for (i in 1:length(v)) {
+      w[[i]] = v[[i]] %>% 
+        html_nodes("#buyButton")
+    }
+  
+    x = NULL
+    for (i in 1:length(w)) {
+      x[[i]] = html_attrs(w[[i]])[[1]][["href"]]
+    }
+    
+    y = NULL
+    for (i in 1:length(x)) {
+      y[[i]] = html_session(paste0(url, x[[i]]))
+    }
+    
+    status = is_404(y)
+    
+    z = NULL
+    for (i in 1:length(status)) {
+      if (status[[i]] == FALSE) {
+        z[[i]] = y[[i]] %>%
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Paperback") %>% 
+          min(na.rm = TRUE) %>% 
+          na_if(Inf)
+      }
+      else {
+        z[[i]] = NA
+      }
+    }
+    
+    z = na_if(z, "character(0)")
+    
+    za = NULL
+    for (i in 1:length(status)) {
+      if (status[[i]] == FALSE) {
+        za[[i]] = y[[i]] %>% 
+          html_nodes(".title-text") %>% 
+          html_text() %>% 
+          str_replace_all("\n", "") %>% 
+          str_which("Hardcover") %>% 
+          min(na.rm = TRUE) %>% 
+          na_if(Inf)
+      }
+      else {
+        za[[i]] = NA
+      }
+    }
+    
+    za = na_if(za, "character(0)")
+    
+    paperbackprice = NULL
+    for (i in 1:length(z)) {
+      if (!is.na(z[[i]])) {
+        paperbackprice[[i]] = y[[i]] %>% 
+          html_nodes(paste0("#declarative_", z[[i]], " .a-color-price")) %>% 
+          html_text(trim = TRUE)
+      }
+      else {
+        paperbackprice[[i]] = NA
+      }
+    }
+    
+    paperbackprice = na_if(paperbackprice, "character(0)")
+    
+    hardcoverprice = NULL
+    for (i in 1:length(za)) {
+      if (!is.na(za[[i]])) {
+          hardcoverprice[[i]] = y[[i]] %>% 
+            html_nodes(paste0("#declarative_", za[[i]], " .a-color-price")) %>% 
+            html_text(trim = TRUE)
+      }
+      else {
+        hardcoverprice[[i]] = NA
+      }
+    }
+    
+    hardcoverprice = na_if(hardcoverprice, "character(0)")
+    
+    zaz = tibble(paperbackprice, hardcoverprice)
+    
+    zaz2 = zaz %>% 
+      mutate(titles = map(t, ~html_attr(., name = "title")))
+    
+    zaz3 = zaz2 %>% 
+      unnest()
+    
+    res = rbind(res, zaz3)
+    
+    a = sess %>% 
+      html_nodes(".right .next_page") %>% 
+      html_attr(name = "href")
+
+    sess = jump_to(sess, paste0(url, a))
+    
+    j = j + 1
+  }
+  return(res)
+}
+```
+
+
+```{r, include = FALSE, eval = FALSE}
+adf = function(sess) {
+  ares = NULL
+  i = 1
+  while(i < 16) {
+    a = sess %>% 
+      html_nodes(".right .next_page") %>% 
+      html_attr(name = "href")
+    
+    ares = rbind(ares, a)
+    
+    sess = jump_to(sess, paste0(url, a))
+    
+    i = i + 1
+  }
+  return(ares)
+}
+
+# ares = adf(s)
+```
+
+
+```{r result}
+res = price_scraper2(s)
+head(res)
+res2 = res %>% 
+  mutate(paperbackprice = str_replace(paperbackprice, "\\$", ""),
+         paperbackprice = as.numeric(paperbackprice),
+         hardcoverprice = str_replace(hardcoverprice, "\\$", ""),
+         hardcoverprice = as.numeric(hardcoverprice),
+         price = pmax(paperbackprice, hardcoverprice, na.rm = TRUE)) %>%  
+  select(price, titles)
+head(res2)
+total = res2 %>% 
+  summarize(n = n(),
+            sum = sum(price, na.rm = TRUE))
+total
+```
+
+
