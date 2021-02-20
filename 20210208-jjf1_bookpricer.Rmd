@@ -64,6 +64,14 @@ is_404 = function(y) {
   }
   return(status)
 }
+
+is_status = function(y) {
+  status = NULL
+  for (i in 1:length(y)) {
+    status[[i]] = y[[i]]$response$status_code
+  }
+  return(status)
+}
 ```
 
 
@@ -226,6 +234,8 @@ price_scraper2 = function(sess) {
     
     status = is_404(y)
     
+    code = is_status(y)
+    
     z = NULL
     for (i in 1:length(status)) {
       if (status[[i]] == FALSE) {
@@ -290,7 +300,7 @@ price_scraper2 = function(sess) {
     
     hardcoverprice = na_if(hardcoverprice, "character(0)")
     
-    zaz = tibble(paperbackprice, hardcoverprice)
+    zaz = tibble(paperbackprice, hardcoverprice, code)
     
     zaz2 = zaz %>% 
       mutate(titles = map(t, ~html_attr(., name = "title")))
@@ -347,8 +357,9 @@ res2 = res %>%
   select(price, titles)
 head(res2)
 total = res2 %>% 
-  summarize(n = n(),
-            sum = sum(price, na.rm = TRUE))
+  summarize(books = n(),
+            sum = sum(price, na.rm = TRUE),
+            na = sum(is.na(price)))
 total
 ```
 

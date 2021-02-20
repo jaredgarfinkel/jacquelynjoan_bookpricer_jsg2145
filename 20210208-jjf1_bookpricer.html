@@ -403,13 +403,21 @@ submit_form(anorg3_sess, filled_form)</code></pre>
 <pre><code>## &lt;session&gt; https://www.goodreads.com/
 ##   Status: 200
 ##   Type:   text/html; charset=utf-8
-##   Size:   221457</code></pre>
+##   Size:   217747</code></pre>
 <pre class="r"><code>s = anorg3_sess %&gt;%
   jump_to(url2)</code></pre>
 <pre class="r"><code>is_404 = function(y) {
   status = NULL
   for (i in 1:length(y)) {
     status[[i]] = if_else(y[[i]]$response$status_code %in% c(&quot;404&quot;, &quot;500&quot;, &quot;503&quot;), TRUE, FALSE)
+  }
+  return(status)
+}
+
+is_status = function(y) {
+  status = NULL
+  for (i in 1:length(y)) {
+    status[[i]] = y[[i]]$response$status_code
   }
   return(status)
 }</code></pre>
@@ -448,6 +456,8 @@ submit_form(anorg3_sess, filled_form)</code></pre>
     }
     
     status = is_404(y)
+    
+    code = is_status(y)
     
     z = NULL
     for (i in 1:length(status)) {
@@ -513,7 +523,7 @@ submit_form(anorg3_sess, filled_form)</code></pre>
     
     hardcoverprice = na_if(hardcoverprice, &quot;character(0)&quot;)
     
-    zaz = tibble(paperbackprice, hardcoverprice)
+    zaz = tibble(paperbackprice, hardcoverprice, code)
     
     zaz2 = zaz %&gt;% 
       mutate(titles = map(t, ~html_attr(., name = &quot;title&quot;)))
@@ -535,15 +545,15 @@ submit_form(anorg3_sess, filled_form)</code></pre>
 }</code></pre>
 <pre class="r"><code>res = price_scraper2(s)
 head(res)</code></pre>
-<pre><code>## # A tibble: 6 x 3
-##   paperbackprice hardcoverprice titles                                          
-##   &lt;chr&gt;          &lt;chr&gt;          &lt;chr&gt;                                           
-## 1 &lt;NA&gt;           &lt;NA&gt;           The Tale of Cuckoo Brow Wood (The Cottage Tales~
-## 2 &lt;NA&gt;           &lt;NA&gt;           Belong: Find Your People, Create Community, and~
-## 3 &lt;NA&gt;           &lt;NA&gt;           Yesterday, Today, Tomorrow: My Life             
-## 4 &lt;NA&gt;           &lt;NA&gt;           Audrey Hepburn, An Elegant Spirit               
-## 5 &lt;NA&gt;           &lt;NA&gt;           Little Audrey&#39;s Daydream: The Life of Audrey He~
-## 6 &lt;NA&gt;           &lt;NA&gt;           The Leopard</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   paperbackprice hardcoverprice  code titles                                    
+##   &lt;chr&gt;          &lt;chr&gt;          &lt;int&gt; &lt;chr&gt;                                     
+## 1 $15.99         $18.49           200 The Dead in Their Vaulted Arches (Flavia ~
+## 2 &lt;NA&gt;           $30.95           200 The Tale of Cuckoo Brow Wood (The Cottage~
+## 3 &lt;NA&gt;           &lt;NA&gt;             200 Belong: Find Your People, Create Communit~
+## 4 $15.60         $19.49           200 Yesterday, Today, Tomorrow: My Life       
+## 5 &lt;NA&gt;           $43.80           200 Audrey Hepburn, An Elegant Spirit         
+## 6 &lt;NA&gt;           &lt;NA&gt;             200 Little Audrey&#39;s Daydream: The Life of Aud~</code></pre>
 <pre class="r"><code>res2 = res %&gt;% 
   mutate(paperbackprice = str_replace(paperbackprice, &quot;\\$&quot;, &quot;&quot;),
          paperbackprice = as.numeric(paperbackprice),
@@ -555,20 +565,21 @@ head(res2)</code></pre>
 <pre><code>## # A tibble: 6 x 2
 ##   price titles                                                                  
 ##   &lt;dbl&gt; &lt;chr&gt;                                                                   
-## 1    NA The Tale of Cuckoo Brow Wood (The Cottage Tales of Beatrix Potter, #3)  
-## 2    NA Belong: Find Your People, Create Community, and Live a More Connected L~
-## 3    NA Yesterday, Today, Tomorrow: My Life                                     
-## 4    NA Audrey Hepburn, An Elegant Spirit                                       
-## 5    NA Little Audrey&#39;s Daydream: The Life of Audrey Hepburn                    
-## 6    NA The Leopard</code></pre>
+## 1  18.5 The Dead in Their Vaulted Arches (Flavia de Luce, #6)                   
+## 2  31.0 The Tale of Cuckoo Brow Wood (The Cottage Tales of Beatrix Potter, #3)  
+## 3  NA   Belong: Find Your People, Create Community, and Live a More Connected L~
+## 4  19.5 Yesterday, Today, Tomorrow: My Life                                     
+## 5  43.8 Audrey Hepburn, An Elegant Spirit                                       
+## 6  NA   Little Audrey&#39;s Daydream: The Life of Audrey Hepburn</code></pre>
 <pre class="r"><code>total = res2 %&gt;% 
-  summarize(n = n(),
-            sum = sum(price, na.rm = TRUE))
+  summarize(books = n(),
+            sum = sum(price, na.rm = TRUE),
+            na = sum(is.na(price)))
 total</code></pre>
-<pre><code>## # A tibble: 1 x 2
-##       n   sum
-##   &lt;int&gt; &lt;dbl&gt;
-## 1   450 2091.</code></pre>
+<pre><code>## # A tibble: 1 x 3
+##   books   sum    na
+##   &lt;int&gt; &lt;dbl&gt; &lt;int&gt;
+## 1   450 6517.   282</code></pre>
 </div>
 
 
